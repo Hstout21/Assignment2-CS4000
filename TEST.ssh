@@ -1,0 +1,46 @@
+#!/bin/bash
+#
+# example self-powers testing routine
+# Ostermann - 2-10-2023
+#
+TIMES=.times
+RESULTS="results.csv"
+echo "schedule,numthreads,speedup" > ${RESULTS}
+
+if [[ ! -x $1 ]] ; then
+    echo "$1 is not an executable file that I can run and test" 1>&2
+    exit 99
+fi
+
+echo "======================================="
+echo "==   speedup test of $1"
+echo "======================================="
+# try various thread counts for speedup
+EFFICIENT_ENOUGH="NOT CHECKED"
+for REPEAT in 1 2 3 4 5; do
+for SCHEDULE in static dynamic guided; do
+for CHUNKSIZE in 1 2 3; do
+WALLTIME_1=""
+for NT in 1 100 200; do
+    echo "$SCHEDULE $CHUNKSIZE - $NT threads:"
+    echo -n "  correctness: "
+    # run with the correct number of threads
+    export OMP_NUM_THREADS=$NT
+    export OMP_SCHEDULE="${SCHEDULE},${CHUNKSIZE}" 
+
+    /usr/bin/time -p ./$1 2> $TIMES
+    # pull out the wallclock (real) time, convert to ms
+    WALLTIME=`grep real $TIMES | awk '{print 1000*$2}'`
+    if [[ -z $WALLTIME_1 ]]; then
+        # save reference times for 1 thread
+        WALLTIME_1=$WALLTIME
+    fi
+    # calculate speedup and efficiency (use awk for better formatting of floats)
+    WT_SPEEDUP=`echo $WALLTIME_1 $WALLTIME | awk '{printf("%.1f", $1 / $2);}'`
+    echo "         wallclock: $WALLTIME ms	speedup: $WT_SPEEDUP"
+    
+    echo "${SCHEDULE}_${CHUNKSIZE},$NT,$WT_SPEEDUP" >> $RESULTS
+done
+done
+done
+done
